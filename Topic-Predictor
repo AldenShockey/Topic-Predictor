@@ -1,0 +1,78 @@
+df = pd.read_json(data_url, lines=True)
+
+def tokenize(doc):
+  stopwords = ['']
+  doc = doc.lower()
+  doc = re.sub('[^a-z0-9]', ' ', doc)
+  doc = remove_stopwords(doc).split()
+  return doc
+df['clean_text'] = df['text'].apply(tokenize)
+df['clean_text']
+
+count = CountVectorizer(max_features=100)
+count.fit(df['text'])
+dtm = count.transform(df['text']).todense()
+dtm_data = pd.DataFrame(dtm)
+dtm_data.head()
+
+nn = NearestNeighbors(n_neighbors=10, n_jobs=1)
+nn.fit(dtm)
+
+fake_review = """I really hated this place! They Didn't give me any free biscuits when they kicked me otu for "upsetting the other patrons" The nerve!!!"""
+fake = [fake_review]
+transf_fake = count.transform(fake).todense()
+n_dist, n_ind = nn.kneighbors(transf_fake)
+print(n_ind)
+
+vect = CountVectorizer()
+rand = RandomForestClassifier()
+pipe = Pipeline([('vect', vect),
+                 ('rand', rand)])
+
+parameters = {'vect__max_df':[1, 2],
+              'rand__max_features':[20, 30]}
+
+gs = GridSearchCV(pipe, parameters, n_jobs=1, cv=2, verbose=1)
+
+X = df['text']
+y= df['stars']
+
+gs.fit(X, y)
+gs.predict([fake_review])[0]
+num_topics = 5
+
+id2word = corpora.Dictionary(df['clean_text'])
+id2word
+corpus = [id2word.doc2bow(doc) for doc in df['clean_text']]
+lda = gensim.models.ldamodel.LdaModel(corpus=corpus,
+                                      id2word=id2word,
+                                      num_topics=num_topics, 
+                                      random_state=723812,
+                                      passes=1,)
+print(id2word)
+print(corpus)
+
+lda.print_topics(num_topics=5, num_words=10)[0]
+
+pyLDAvis.enable_notebook()
+vis = pyLDAvis.gensim.prepare(lda, corpus, id2word)
+vis
+
+big_string = ''
+for item in df['text']:
+    big_string += ' '
+    big_string += item
+big_string
+
+tokens = tokenize(big_string)
+
+word_counts = Counter()
+word_counts.update(tokens)
+counts = [token[1] for token in word_counts.most_common(10)]
+counts
+fig, visual_plot = plt.subplots()
+
+plt.bar(x=list(range(1,11)), height=counts)
+plt.xticks(list(range(1,11)), tokens, rotation=45)
+plt.show()
+df['clean_text']
